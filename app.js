@@ -1,21 +1,12 @@
 const fs = require("fs")
-const jwt = require("jsonwebtoken")
+const { verification } = require("./middlewares/authentication")
 const express = require("express")
+const { generateToken, verify } = require("./helpers/jwt")
 const app = express()
 
 // Middleware
 app.use(express.urlencoded({ extended: true }))
-
-// Verifikasi JWT
-const verification = (req, res, next) => {
-  let getHeader = req.headers["auth"]
-  if (typeof getHeader !== "undefined") {
-    req.token = getHeader
-    next()
-  } else {
-    res.sendStatus(403)
-  }
-}
+app.use(express.json())
 
 // Routing Root
 app.get("/", (req, res) => {
@@ -33,39 +24,31 @@ app.post("/login", (req, res) => {
 
   const matchUser = usersParsing.find((user) => user.username === username)
   if (matchUser && matchUser.password === password) {
-    res.send("Keterangan: Berhasil Login.")
     const data = {
       username: matchUser.username,
       password: matchUser.password,
     }
-    jwt.sign(
-      {
-        data: data,
-      },
-      "secret",
-      (err, token) => {
-        console.log("Keterangan: Berhasil Login")
-        console.log(`Token Anda: ${token}`)
-      }
-    )
+
+    const token = generateToken(data)
+    res.status(200).json({
+      devMessage: "Berhasil Login",
+      token: token,
+    })
   } else if (matchUser && matchUser.password !== password) {
+    res.status(401)
     res.send("Keterangan: Password Salah")
   } else {
+    res.status(400)
     res.send("Keterangan: Data tidak valid!")
   }
 })
 
+app.use(verification)
 // Routing GET all data teachers
-app.get("/teachers", verification, (req, res) => {
-  jwt.verify(req.token, "secret", (err, auth) => {
-    if (err) {
-      res.sendStatus(403)
-    } else {
-      const users = fs.readFileSync("./data/teachers.json", "utf-8")
-      const usersParsing = JSON.parse(users)
-      res.json(usersParsing)
-    }
-  })
+app.get("/teachers", (req, res) => {
+  const users = fs.readFileSync("./data/teachers.json", "utf-8")
+  const usersParsing = JSON.parse(users)
+  res.json(usersParsing)
 })
 
 app.listen(3000, () => {
